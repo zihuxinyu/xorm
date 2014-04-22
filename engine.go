@@ -30,11 +30,11 @@ type Engine struct {
 	mutex  *sync.RWMutex
 	Cacher core.Cacher
 
-	ShowSQL   bool
-	ShowErr   bool
-	ShowDebug bool
-	ShowWarn  bool
-	ShowInfo  bool
+	ShowSQL bool
+	// ShowErr   bool
+	// ShowDebug bool
+	// ShowWarn  bool
+	// ShowInfo  bool
 	//Pool      IConnectPool
 	//Filters []core.Filter
 	Logger     ILogger // io.Writer
@@ -184,30 +184,30 @@ func (engine *Engine) logSQL(sqlStr string, sqlArgs ...interface{}) {
 
 // logging error
 func (engine *Engine) LogError(contents ...interface{}) {
-	if engine.ShowErr {
-		engine.Logger.Err(fmt.Sprintln(contents...))
-	}
+	// if engine.ShowErr {
+	engine.Logger.Err(fmt.Sprintln(contents...))
+	// }
 }
 
 // logging error
 func (engine *Engine) LogInfo(contents ...interface{}) {
-	if engine.ShowInfo {
-		engine.Logger.Info(fmt.Sprintln(contents...))
-	}
+	// if engine.ShowInfo {
+	engine.Logger.Info(fmt.Sprintln(contents...))
+	// }
 }
 
 // logging debug
 func (engine *Engine) LogDebug(contents ...interface{}) {
-	if engine.ShowDebug {
-		engine.Logger.Debug(fmt.Sprintln(contents...))
-	}
+	// if engine.ShowDebug {
+	engine.Logger.Debug(fmt.Sprintln(contents...))
+	// }
 }
 
 // logging warn
 func (engine *Engine) LogWarn(contents ...interface{}) {
-	if engine.ShowWarn {
-		engine.Logger.Warning(fmt.Sprintln(contents...))
-	}
+	// if engine.ShowWarn {
+	engine.Logger.Warning(fmt.Sprintln(contents...))
+	// }
 }
 
 // Sql method let's you manualy write raw sql and operate
