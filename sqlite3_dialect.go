@@ -142,11 +142,11 @@ var (
 )
 
 type sqlite3 struct {
-	core.Base
+	core.BaseDialect
 }
 
 func (db *sqlite3) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	return db.Base.Init(d, db, uri, drivername, dataSourceName)
+	return db.BaseDialect.Init(d, db, uri, drivername, dataSourceName)
 }
 
 func (db *sqlite3) SqlType(c *core.Column) string {
@@ -184,12 +184,20 @@ func (db *sqlite3) SupportInsertMany() bool {
 }
 
 func (db *sqlite3) IsReserved(name string) bool {
-	_, ok := sqlite3ReservedWords[name]
+	_, ok := sqlite3ReservedWords[strings.ToUpper(name)]
 	return ok
 }
 
 func (db *sqlite3) Quote(name string) string {
 	return "`" + name + "`"
+}
+
+func (db *sqlite3) CheckedQuote(name string) string {
+	if db.IsReserved(name) {
+		return db.Quote(name)
+	} else {
+		return name
+	}
 }
 
 func (db *sqlite3) QuoteStr() string {

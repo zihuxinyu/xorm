@@ -161,7 +161,7 @@ var (
 )
 
 type mysql struct {
-	core.Base
+	core.BaseDialect
 	net               string
 	addr              string
 	params            map[string]string
@@ -174,7 +174,7 @@ type mysql struct {
 }
 
 func (db *mysql) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	return db.Base.Init(d, db, uri, drivername, dataSourceName)
+	return db.BaseDialect.Init(d, db, uri, drivername, dataSourceName)
 }
 
 func (db *mysql) SqlType(c *core.Column) string {
@@ -241,12 +241,20 @@ func (db *mysql) SupportInsertMany() bool {
 }
 
 func (db *mysql) IsReserved(name string) bool {
-	_, ok := mysqlReservedWords[name]
+	_, ok := mysqlReservedWords[strings.ToUpper(name)]
 	return ok
 }
 
 func (db *mysql) Quote(name string) string {
-	return "`" + name + "`"
+	return fmt.Sprintf("`%s`", name)
+}
+
+func (db *mysql) CheckedQuote(name string) string {
+	if db.IsReserved(name) {
+		return db.Quote(name)
+	} else {
+		return name
+	}
 }
 
 func (db *mysql) QuoteStr() string {
@@ -271,8 +279,8 @@ func (db *mysql) IndexOnTable() bool {
 
 func (db *mysql) IndexCheckSql(tableName, idxName string) (string, []interface{}) {
 	args := []interface{}{db.DbName, tableName, idxName}
-	sql := "SELECT `INDEX_NAME` FROM `INFORMATION_SCHEMA`.`STATISTICS`"
-	sql += " WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ? AND `INDEX_NAME`=?"
+	sql := "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS"
+	sql += " WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND INDEX_NAME=?"
 	return sql, args
 }
 
@@ -284,14 +292,14 @@ func (db *mysql) IndexCheckSql(tableName, idxName string) (string, []interface{}
 
 func (db *mysql) TableCheckSql(tableName string) (string, []interface{}) {
 	args := []interface{}{db.DbName, tableName}
-	sql := "SELECT `TABLE_NAME` from `INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA`=? and `TABLE_NAME`=?"
+	sql := "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=? AND TABLE_NAME=?"
 	return sql, args
 }
 
 func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
 	args := []interface{}{db.DbName, tableName}
-	s := "SELECT `COLUMN_NAME`, `IS_NULLABLE`, `COLUMN_DEFAULT`, `COLUMN_TYPE`," +
-		" `COLUMN_KEY`, `EXTRA` FROM `INFORMATION_SCHEMA`.`COLUMNS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
+	s := "SELECT COLUMN_NAME,IS_NULLABLE,COLUMN_DEFAULT,COLUMN_TYPE," +
+		"COLUMN_KEY,EXTRA FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?"
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -399,7 +407,7 @@ func (db *mysql) GetColumns(tableName string) ([]string, map[string]*core.Column
 
 func (db *mysql) GetTables() ([]*core.Table, error) {
 	args := []interface{}{db.DbName}
-	s := "SELECT `TABLE_NAME`, `ENGINE`, `TABLE_ROWS`, `AUTO_INCREMENT` from `INFORMATION_SCHEMA`.`TABLES` WHERE `TABLE_SCHEMA`=?"
+	s := "SELECT TABLE_NAME,ENGINE,TABLE_ROWS,AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=?"
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -426,7 +434,7 @@ func (db *mysql) GetTables() ([]*core.Table, error) {
 
 func (db *mysql) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{db.DbName, tableName}
-	s := "SELECT `INDEX_NAME`, `NON_UNIQUE`, `COLUMN_NAME` FROM `INFORMATION_SCHEMA`.`STATISTICS` WHERE `TABLE_SCHEMA` = ? AND `TABLE_NAME` = ?"
+	s := "SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=? AND TABLE_NAME=?"
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {

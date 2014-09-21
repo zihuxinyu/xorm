@@ -81,22 +81,22 @@ func (engine *Engine) SupportInsertMany() bool {
 	return engine.dialect.SupportInsertMany()
 }
 
-// Engine's database use which charactor as quote.
-// mysql, sqlite use ` and postgres use "
-func (engine *Engine) QuoteStr() string {
-	return engine.dialect.QuoteStr()
-}
+// // Engine's database use which charactor as quote.
+// // mysql, sqlite use ` and postgres use "
+// func (engine *Engine) QuoteStr() string {
+// 	return engine.dialect.QuoteStr()
+// }
 
-// Use QuoteStr quote the string sql
-func (engine *Engine) Quote(sql string) string {
-	if len(sql) == 0 {
-		return sql
-	}
-	if string(sql[0]) == engine.dialect.QuoteStr() || sql[0] == '`' {
-		return sql
-	}
-	return engine.dialect.QuoteStr() + sql + engine.dialect.QuoteStr()
-}
+// // Use QuoteStr quote the string sql
+// func (engine *Engine) Quote(sql string) string {
+// 	if len(sql) == 0 {
+// 		return sql
+// 	}
+// 	if string(sql[0]) == engine.dialect.QuoteStr() || sql[0] == '`' {
+// 		return sql
+// 	}
+// 	return engine.dialect.QuoteStr() + sql + engine.dialect.QuoteStr()
+// }
 
 // A simple wrapper to dialect's core.SqlType method
 func (engine *Engine) SqlType(c *core.Column) string {
@@ -373,7 +373,7 @@ func (engine *Engine) DumpAll(w io.Writer) error {
 			}
 		}
 
-		rows, err := engine.DB().Query("SELECT * FROM " + engine.Quote(table.Name))
+		rows, err := engine.DB().Query("SELECT * FROM " + table.CCheckedName(engine.dialect))
 		if err != nil {
 			return err
 		}
@@ -392,7 +392,7 @@ func (engine *Engine) DumpAll(w io.Writer) error {
 				return err
 			}
 
-			_, err = io.WriteString(w, "INSERT INTO "+engine.Quote(table.Name)+" ("+engine.Quote(strings.Join(cols, engine.Quote(", ")))+") VALUES (")
+			_, err = io.WriteString(w, "INSERT INTO "+table.CCheckedName(engine.dialect)+" ("+engine.dialect.Quote(strings.Join(cols, engine.dialect.Quote(",")))+") VALUES (")
 			if err != nil {
 				return err
 			}
@@ -401,29 +401,29 @@ func (engine *Engine) DumpAll(w io.Writer) error {
 			for i, d := range dest {
 				col := table.GetColumn(cols[i])
 				if d == nil {
-					temp += ", NULL"
+					temp += ",NULL"
 				} else if col.SQLType.IsText() || col.SQLType.IsTime() {
 					var v = fmt.Sprintf("%s", d)
-					temp += ", '" + strings.Replace(v, "'", "''", -1) + "'"
+					temp += ",'" + strings.Replace(v, "'", "''", -1) + "'"
 				} else if col.SQLType.IsBlob() {
 					if reflect.TypeOf(d).Kind() == reflect.Slice {
-						temp += fmt.Sprintf(", %s", engine.dialect.FormatBytes(d.([]byte)))
+						temp += fmt.Sprintf(",%s", engine.dialect.FormatBytes(d.([]byte)))
 					} else if reflect.TypeOf(d).Kind() == reflect.String {
-						temp += fmt.Sprintf(", '%s'", d.(string))
+						temp += fmt.Sprintf(",'%s'", d.(string))
 					}
 				} else if col.SQLType.IsNumeric() {
 					switch reflect.TypeOf(d).Kind() {
 					case reflect.Slice:
-						temp += fmt.Sprintf(", %s", string(d.([]byte)))
+						temp += fmt.Sprintf(",%s", string(d.([]byte)))
 					default:
-						temp += fmt.Sprintf(", %v", d)
+						temp += fmt.Sprintf(",%v", d)
 					}
 				} else {
 					s := fmt.Sprintf("%v", d)
 					if strings.Contains(s, ":") || strings.Contains(s, "-") {
-						temp += fmt.Sprintf(", '%s'", s)
+						temp += fmt.Sprintf(",'%s'", s)
 					} else {
-						temp += fmt.Sprintf(", %s", s)
+						temp += fmt.Sprintf(",%s", s)
 					}
 				}
 			}
@@ -674,6 +674,7 @@ func (engine *Engine) mapType(v reflect.Value) *core.Table {
 	if table.Name == "" {
 		table.Name = engine.TableMapper.Obj2Table(t.Name())
 	}
+
 	table.Type = t
 
 	var idFieldColName string
@@ -879,7 +880,8 @@ func (engine *Engine) mapType(v reflect.Value) *core.Table {
 			} else {
 				sqlType = core.Type2SQLType(fieldType)
 			}
-			col = core.NewColumn(engine.ColumnMapper.Obj2Table(t.Field(i).Name),
+			name := engine.ColumnMapper.Obj2Table(t.Field(i).Name)
+			col = core.NewColumn(name, engine.dialect.CheckedQuote(name),
 				t.Field(i).Name, sqlType, sqlType.DefaultLength,
 				sqlType.DefaultLength2, true)
 		}

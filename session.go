@@ -226,11 +226,12 @@ func (session *Session) Desc(colNames ...string) *Session {
 // Method Asc provide asc order by query condition, the input parameters are columns.
 func (session *Session) Asc(colNames ...string) *Session {
 	if session.Statement.OrderStr != "" {
-		session.Statement.OrderStr += ", "
+		session.Statement.OrderStr += ","
 	}
 	newColNames := col2NewCols(colNames...)
-	sqlStr := strings.Join(newColNames, session.Engine.Quote(" ASC, "))
-	session.Statement.OrderStr += session.Engine.Quote(sqlStr) + " ASC"
+	sqlStr := strings.Join(newColNames, " ASC,")
+	session.Statement.OrderStr += sqlStr
+	session.Statement.OrderStr += " ASC"
 	return session
 }
 
@@ -595,7 +596,7 @@ func (session *Session) DropTable(bean interface{}) error {
 	t := reflect.Indirect(reflect.ValueOf(bean)).Type()
 	defer session.resetStatement()
 	if t.Kind() == reflect.String {
-		session.Statement.AltTableName = bean.(string)
+		session.Statement.AltTableName = session.Engine.dialect.CheckedQuote(bean.(string))
 	} else if t.Kind() == reflect.Struct {
 		session.Statement.RefTable = session.Engine.TableInfo(bean)
 	} else {
@@ -615,8 +616,10 @@ func (statement *Statement) convertIdSql(sqlStr string) string {
 			if len(sqls) != 2 {
 				return ""
 			}
-			newsql := fmt.Sprintf("SELECT %v.%v FROM %v", statement.Engine.Quote(statement.TableName()),
-				statement.Engine.Quote(col.Name), sqls[1])
+			newsql := fmt.Sprintf("SELECT %v.%v FROM %v",
+				statement.TableName(),
+				col.Name,
+				sqls[1])
 			return newsql
 		}
 	}
@@ -1872,10 +1875,6 @@ func (session *Session) Query(sqlStr string, paramStr ...interface{}) (resultsSl
 	return session.query(sqlStr, paramStr...)
 }
 
-
-
-
-
 // =============================
 // for string
 // =============================
@@ -1924,9 +1923,6 @@ func (session *Session) Q(sqlStr string, paramStr ...interface{}) (resultsSlice 
 	}
 	return session.query2(sqlStr, paramStr...)
 }
-
-
-
 
 // insert one or more beans
 func (session *Session) Insert(beans ...interface{}) (int64, error) {
@@ -2031,7 +2027,7 @@ func (session *Session) innerInsertMulti(rowsSlicePtr interface{}) (int64, error
 					args = append(args, arg)
 				}
 
-				colNames = append(colNames, col.Name)
+				colNames = append(colNames, col.CheckedName(session.Engine.dialect))
 				cols = append(cols, col)
 				colPlaces = append(colPlaces, "?")
 			}
@@ -2062,17 +2058,13 @@ func (session *Session) innerInsertMulti(rowsSlicePtr interface{}) (int64, error
 				colPlaces = append(colPlaces, "?")
 			}
 		}
-		colMultiPlaces = append(colMultiPlaces, strings.Join(colPlaces, ", "))
+		colMultiPlaces = append(colMultiPlaces, strings.Join(colPlaces, ","))
 	}
 	cleanupProcessorsClosures(&session.beforeClosures)
 
-	statement := fmt.Sprintf("INSERT INTO %v%v%v (%v%v%v) VALUES (%v)",
-		session.Engine.QuoteStr(),
+	statement := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)",
 		session.Statement.TableName(),
-		session.Engine.QuoteStr(),
-		session.Engine.QuoteStr(),
-		strings.Join(colNames, session.Engine.QuoteStr()+", "+session.Engine.QuoteStr()),
-		session.Engine.QuoteStr(),
+		strings.Join(colNames, ","),
 		strings.Join(colMultiPlaces, "),("))
 
 	res, err := session.exec(statement, args...)
@@ -2747,21 +2739,17 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 	}
 	// --
 
-	colNames, args, err := genCols(table, session, bean, false, false)
+	colNames, args, err := genCols(session.Engine.dialect, table, session, bean, false, false)
 	if err != nil {
 		return 0, err
 	}
 
-	colPlaces := strings.Repeat("?, ", len(colNames))
-	colPlaces = colPlaces[0 : len(colPlaces)-2]
+	colPlaces := strings.Repeat("?,", len(colNames))
+	colPlaces = colPlaces[0 : len(colPlaces)-1]
 
-	sqlStr := fmt.Sprintf("INSERT INTO %v%v%v (%v%v%v) VALUES (%v)",
-		session.Engine.QuoteStr(),
+	sqlStr := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)",
 		session.Statement.TableName(),
-		session.Engine.QuoteStr(),
-		session.Engine.QuoteStr(),
-		strings.Join(colNames, session.Engine.Quote(", ")),
-		session.Engine.QuoteStr(),
+		strings.Join(colNames, ","),
 		colPlaces)
 
 	handleAfterInsertProcessorFunc := func(bean interface{}) {
@@ -2854,7 +2842,7 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 		return res.RowsAffected()
 	} else {
 		//assert table.AutoIncrement != ""
-		sqlStr = sqlStr + " RETURNING " + session.Engine.Quote(table.AutoIncrement)
+		sqlStr = sqlStr + " RETURNING " + session.Engine.dialect.CheckedQuote(table.AutoIncrement)
 		res, err := session.query(sqlStr, args...)
 
 		if err != nil {
@@ -2938,8 +2926,8 @@ func (statement *Statement) convertUpdateSql(sqlStr string) (string, string) {
 	if len(sqls) != 2 {
 		if len(sqls) == 1 {
 			return sqls[0], fmt.Sprintf("SELECT %v FROM %v",
-				statement.Engine.Quote(statement.RefTable.PrimaryKeys[0]),
-				statement.Engine.Quote(statement.RefTable.Name))
+				statement.Engine.dialect.CheckedQuote(statement.RefTable.PrimaryKeys[0]),
+				statement.RefTable.Name)
 		}
 		return "", ""
 	}
@@ -2966,7 +2954,8 @@ func (statement *Statement) convertUpdateSql(sqlStr string) (string, string) {
 	}
 
 	return sqls[0], fmt.Sprintf("SELECT %v FROM %v WHERE %v",
-		statement.Engine.Quote(statement.RefTable.PrimaryKeys[0]), statement.Engine.Quote(statement.TableName()),
+		statement.Engine.dialect.CheckedQuote(statement.RefTable.PrimaryKeys[0]),
+		statement.TableName(),
 		whereStr)
 }
 
@@ -3063,8 +3052,8 @@ func (session *Session) cacheUpdate(sqlStr string, args ...interface{}) error {
 				colName := sps2[len(sps2)-1]
 				if strings.Contains(colName, "`") {
 					colName = strings.TrimSpace(strings.Replace(colName, "`", "", -1))
-				} else if strings.Contains(colName, session.Engine.QuoteStr()) {
-					colName = strings.TrimSpace(strings.Replace(colName, session.Engine.QuoteStr(), "", -1))
+				} else if strings.Contains(colName, session.Engine.dialect.QuoteStr()) {
+					colName = strings.TrimSpace(strings.Replace(colName, session.Engine.dialect.QuoteStr(), "", -1))
 				} else {
 					session.Engine.LogDebug("[xorm:cacheUpdate] cannot find column", tableName, colName)
 					return ErrCacheFailed
@@ -3138,7 +3127,7 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 				false, false, session.Statement.allUseBool, session.Statement.useAllCols,
 				session.Statement.mustColumnMap, true)
 		} else {
-			colNames, args, err = genCols(table, session, bean, true, true)
+			colNames, args, err = genCols(session.Engine.dialect, table, session, bean, true, true)
 			if err != nil {
 				return 0, err
 			}
@@ -3153,7 +3142,7 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 		bValue := reflect.Indirect(reflect.ValueOf(bean))
 
 		for _, v := range bValue.MapKeys() {
-			colNames = append(colNames, session.Engine.Quote(v.String())+" = ?")
+			colNames = append(colNames, session.Engine.dialect.CheckedQuote(v.String())+"=?")
 			args = append(args, bValue.MapIndex(v).Interface())
 		}
 	} else {
@@ -3161,20 +3150,20 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 	}
 
 	if session.Statement.UseAutoTime && table.Updated != "" {
-		colNames = append(colNames, session.Engine.Quote(table.Updated)+" = ?")
+		colNames = append(colNames, session.Engine.dialect.CheckedQuote(table.Updated)+"=?")
 		args = append(args, session.Engine.NowTime(table.UpdatedColumn().SQLType.Name))
 	}
 
 	//for update action to like "column = column + ?"
 	incColumns := session.Statement.getInc()
 	for _, v := range incColumns {
-		colNames = append(colNames, session.Engine.Quote(v.colName)+" = "+session.Engine.Quote(v.colName)+" + ?")
+		colNames = append(colNames, session.Engine.dialect.CheckedQuote(v.colName)+"="+session.Engine.dialect.CheckedQuote(v.colName)+"+?")
 		args = append(args, v.arg)
 	}
 	//for update action to like "column = column - ?"
 	decColumns := session.Statement.getDec()
 	for _, v := range decColumns {
-		colNames = append(colNames, session.Engine.Quote(v.colName)+" = "+session.Engine.Quote(v.colName)+" - ?")
+		colNames = append(colNames, session.Engine.dialect.CheckedQuote(v.colName)+"="+session.Engine.dialect.CheckedQuote(v.colName)+"-?")
 		args = append(args, v.arg)
 	}
 
@@ -3212,10 +3201,10 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 	var verValue *reflect.Value
 	if table.Version != "" && session.Statement.checkVersion {
 		if condition != "" {
-			condition = fmt.Sprintf("WHERE (%v) %v %v = ?", condition, session.Engine.Dialect().AndStr(),
-				session.Engine.Quote(table.Version))
+			condition = fmt.Sprintf("WHERE (%v) %v %v=?", condition, session.Engine.Dialect().AndStr(),
+				table.Version)
 		} else {
-			condition = fmt.Sprintf("WHERE %v = ?", session.Engine.Quote(table.Version))
+			condition = fmt.Sprintf("WHERE %v=?", table.Version)
 		}
 		inSql, inArgs = session.Statement.genInSql()
 		if len(inSql) > 0 {
@@ -3227,9 +3216,9 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 		}
 
 		sqlStr = fmt.Sprintf("UPDATE %v SET %v, %v %v",
-			session.Engine.Quote(session.Statement.TableName()),
-			strings.Join(colNames, ", "),
-			session.Engine.Quote(table.Version)+" = "+session.Engine.Quote(table.Version)+" + 1",
+			session.Statement.TableName(),
+			strings.Join(colNames, ","),
+			table.Version+"="+table.Version+" + 1",
 			condition)
 
 		verValue, err = table.VersionColumn().ValueOf(bean)
@@ -3253,8 +3242,8 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 		}
 
 		sqlStr = fmt.Sprintf("UPDATE %v SET %v %v",
-			session.Engine.Quote(session.Statement.TableName()),
-			strings.Join(colNames, ", "),
+			session.Statement.TableName(),
+			strings.Join(colNames, ","),
 			condition)
 	}
 
@@ -3390,22 +3379,23 @@ func (session *Session) Delete(bean interface{}) (int64, error) {
 		false, true, session.Statement.allUseBool, session.Statement.useAllCols,
 		session.Statement.mustColumnMap)
 
-	var condition = ""
+	var condition string = ""
 	var andStr = session.Engine.dialect.AndStr()
 
 	session.Statement.processIdParam()
+	andStrWithSpace := " " + andStr + " "
 	if session.Statement.WhereStr != "" {
 		condition = session.Statement.WhereStr
 		if len(colNames) > 0 {
-			condition += " " + andStr + " " + strings.Join(colNames, " "+andStr+" ")
+			condition += andStrWithSpace + strings.Join(colNames, andStrWithSpace)
 		}
 	} else {
-		condition = strings.Join(colNames, " "+andStr+" ")
+		condition = strings.Join(colNames, andStrWithSpace)
 	}
 	inSql, inArgs := session.Statement.genInSql()
 	if len(inSql) > 0 {
 		if len(condition) > 0 {
-			condition += " " + andStr + " "
+			condition += andStrWithSpace
 		}
 		condition += inSql
 		args = append(args, inArgs...)
@@ -3415,7 +3405,7 @@ func (session *Session) Delete(bean interface{}) (int64, error) {
 	}
 
 	sqlStr := fmt.Sprintf("DELETE FROM %v WHERE %v",
-		session.Engine.Quote(session.Statement.TableName()), condition)
+		session.Statement.TableName(), condition)
 
 	args = append(session.Statement.Params, args...)
 
@@ -3459,11 +3449,12 @@ func (session *Session) Delete(bean interface{}) (int64, error) {
 	return res.RowsAffected()
 }
 
-func genCols(table *core.Table, session *Session, bean interface{}, useCol bool, includeQuote bool) ([]string, []interface{}, error) {
+func genCols(dialect core.Dialect, table *core.Table, session *Session, bean interface{}, useCol bool, includeQuote bool) ([]string, []interface{}, error) {
 	colNames := make([]string, 0)
 	args := make([]interface{}, 0)
 
 	for _, col := range table.Columns() {
+
 		lColName := strings.ToLower(col.Name)
 		if useCol && !col.IsVersion && !col.IsCreated && !col.IsUpdated {
 			if _, ok := session.Statement.columnMap[lColName]; !ok {
@@ -3521,11 +3512,10 @@ func genCols(table *core.Table, session *Session, bean interface{}, useCol bool,
 			}
 			args = append(args, arg)
 		}
-
 		if includeQuote {
-			colNames = append(colNames, session.Engine.Quote(col.Name)+" = ?")
+			colNames = append(colNames, col.CheckedName(dialect)+"=?")
 		} else {
-			colNames = append(colNames, col.Name)
+			colNames = append(colNames, col.CheckedName(dialect))
 		}
 	}
 	return colNames, args, nil

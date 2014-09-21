@@ -204,11 +204,11 @@ var (
 )
 
 type mssql struct {
-	core.Base
+	core.BaseDialect
 }
 
 func (db *mssql) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	return db.Base.Init(d, db, uri, drivername, dataSourceName)
+	return db.BaseDialect.Init(d, db, uri, drivername, dataSourceName)
 }
 
 func (db *mssql) SqlType(c *core.Column) string {
@@ -265,12 +265,20 @@ func (db *mssql) SupportInsertMany() bool {
 }
 
 func (db *mssql) IsReserved(name string) bool {
-	_, ok := mssqlReservedWords[name]
+	_, ok := mssqlReservedWords[strings.ToUpper(name)]
 	return ok
 }
 
 func (db *mssql) Quote(name string) string {
-	return "[" + name + "]"
+	return fmt.Sprintf("[%s]", name)
+}
+
+func (db *mssql) CheckedQuote(name string) string {
+	if db.IsReserved(name) {
+		return db.Quote(name)
+	} else {
+		return name
+	}
 }
 
 func (db *mssql) QuoteStr() string {
@@ -486,13 +494,13 @@ func (db *mssql) CreateTableSql(table *core.Table, tableName, storeEngine, chars
 			sql += col.StringNoPk(db)
 		}
 		sql = strings.TrimSpace(sql)
-		sql += ", "
+		sql += ","
 	}
 
 	if len(pkList) > 1 {
 		sql += "PRIMARY KEY ( "
 		sql += strings.Join(pkList, ",")
-		sql += " ), "
+		sql += " ),"
 	}
 
 	sql = sql[:len(sql)-2] + ")"

@@ -498,11 +498,11 @@ var (
 )
 
 type oracle struct {
-	core.Base
+	core.BaseDialect
 }
 
 func (db *oracle) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	return db.Base.Init(d, db, uri, drivername, dataSourceName)
+	return db.BaseDialect.Init(d, db, uri, drivername, dataSourceName)
 }
 
 func (db *oracle) SqlType(c *core.Column) string {
@@ -541,12 +541,20 @@ func (db *oracle) SupportInsertMany() bool {
 }
 
 func (db *oracle) IsReserved(name string) bool {
-	_, ok := oracleReservedWords[name]
+	_, ok := oracleReservedWords[strings.ToUpper(name)]
 	return ok
 }
 
 func (db *oracle) Quote(name string) string {
-	return "\"" + name + "\""
+	return fmt.Sprintf("\"%s\"", name)
+}
+
+func (db *oracle) CheckedQuote(name string) string {
+	if db.IsReserved(name) {
+		return db.Quote(name)
+	} else {
+		return name
+	}
 }
 
 func (db *oracle) QuoteStr() string {

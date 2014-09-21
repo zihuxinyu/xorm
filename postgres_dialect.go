@@ -333,11 +333,11 @@ var (
 )
 
 type postgres struct {
-	core.Base
+	core.BaseDialect
 }
 
 func (db *postgres) Init(d *core.DB, uri *core.Uri, drivername, dataSourceName string) error {
-	return db.Base.Init(d, db, uri, drivername, dataSourceName)
+	return db.BaseDialect.Init(d, db, uri, drivername, dataSourceName)
 }
 
 func (db *postgres) SqlType(c *core.Column) string {
@@ -393,12 +393,20 @@ func (db *postgres) SupportInsertMany() bool {
 }
 
 func (db *postgres) IsReserved(name string) bool {
-	_, ok := postgresReservedWords[name]
+	_, ok := postgresReservedWords[strings.ToUpper(name)]
 	return ok
 }
 
 func (db *postgres) Quote(name string) string {
-	return "\"" + name + "\""
+	return fmt.Sprintf("\"%s\"", name)
+}
+
+func (db *postgres) CheckedQuote(name string) string {
+	if db.IsReserved(name) {
+		return db.Quote(name)
+	} else {
+		return name
+	}
 }
 
 func (db *postgres) QuoteStr() string {
@@ -423,13 +431,13 @@ func (db *postgres) IndexOnTable() bool {
 
 func (db *postgres) IndexCheckSql(tableName, idxName string) (string, []interface{}) {
 	args := []interface{}{tableName, idxName}
-	return `SELECT indexname FROM pg_indexes ` +
-		`WHERE tablename = ? AND indexname = ?`, args
+	return "SELECT indexname FROM pg_indexes " +
+		"WHERE tablename = ? AND indexname = ?", args
 }
 
 func (db *postgres) TableCheckSql(tableName string) (string, []interface{}) {
 	args := []interface{}{tableName}
-	return `SELECT tablename FROM pg_tables WHERE tablename = ?`, args
+	return "SELECT tablename FROM pg_tables WHERE tablename = ?", args
 }
 
 /*func (db *postgres) ColumnCheckSql(tableName, colName string) (string, []interface{}) {
