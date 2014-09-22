@@ -633,13 +633,13 @@ func (engine *Engine) TableInfo(bean interface{}) *core.Table {
 	return engine.autoMapType(v)
 }
 
-func addIndex(indexName string, table *core.Table, col *core.Column, indexType int) {
+func addIndex(indexName string, dialect core.Dialect, table *core.Table, col *core.Column, indexType int) {
 	if index, ok := table.Indexes[indexName]; ok {
-		index.AddColumn(col.Name)
+		index.AddColumn(col.CheckedName(dialect))
 		col.Indexes[index.Name] = true
 	} else {
 		index := core.NewIndex(indexName, indexType)
-		index.AddColumn(col.Name)
+		index.AddColumn(col.CheckedName(dialect))
 		table.AddIndex(index)
 		col.Indexes[index.Name] = true
 	}
@@ -865,7 +865,7 @@ func (engine *Engine) mapType(v reflect.Value) *core.Table {
 				}
 
 				for indexName, indexType := range indexNames {
-					addIndex(indexName, table, col, indexType)
+					addIndex(indexName, engine.dialect, table, col, indexType)
 				}
 			}
 		} else {
