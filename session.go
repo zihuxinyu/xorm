@@ -2840,7 +2840,7 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 		aiValue.Set(reflect.ValueOf(v))
 
 		return res.RowsAffected()
-	} else {
+	} else { // only postgres condition, TODO have this in dialect way?
 		//assert table.AutoIncrement != ""
 		sqlStr = sqlStr + " RETURNING " + session.Engine.dialect.CheckedQuote(table.AutoIncrement)
 		res, err := session.query(sqlStr, args...)
@@ -2868,10 +2868,15 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 			return 0, errors.New("insert no error but not returned id")
 		}
 
-		idByte := res[0][table.AutoIncrement]
-		id, err := strconv.ParseInt(string(idByte), 10, 64)
-		if err != nil {
-			return 1, err
+		var id int64
+		for _, v := range res[0] {
+			idByte := v
+			id, err = strconv.ParseInt(string(idByte), 10, 64)
+			if err != nil {
+				return 1, err
+			} else {
+				break
+			}
 		}
 
 		aiValue, err := table.AutoIncrColumn().ValueOf(bean)
