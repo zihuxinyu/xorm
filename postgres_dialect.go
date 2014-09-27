@@ -902,7 +902,6 @@ func (db *postgres) IsColumnExist(tableName string, col *core.Column) (bool, err
 	args := []interface{}{fmt.Sprintf("^%s$", tableName), fmt.Sprintf("^%s$", col.Name)}
 	query := "SELECT column_name FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name~*$1" +
 		" AND column_name~*$2"
-	println("query", query, "args", fmt.Sprintf("%v", args))
 	rows, err := db.DB().Query(query, args...)
 	if err != nil {
 		return false, err
