@@ -2868,6 +2868,8 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 			return 0, errors.New("insert no error but not returned id")
 		}
 
+		// !nashtsai! use 1st column value for RETURN AutoIncrement id field for insert record,
+		// this is to void postgresql always uses lower case column name
 		var id int64
 		for _, v := range res[0] {
 			idByte := v
