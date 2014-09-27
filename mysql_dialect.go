@@ -475,7 +475,7 @@ func (db *mysql) GetIndexes(tableName string) (map[string]*core.Index, error) {
 			index.Name = indexName
 			indexes[indexName] = index
 		}
-		index.AddColumn(colName)
+		index.AddColumn(colName) // TODO need to quote?
 	}
 	return indexes, nil
 }

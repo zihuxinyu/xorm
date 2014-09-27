@@ -222,12 +222,12 @@ func (db *sqlite3) IndexOnTable() bool {
 
 func (db *sqlite3) IndexCheckSql(tableName, idxName string) (string, []interface{}) {
 	args := []interface{}{idxName}
-	return "SELECT name FROM sqlite_master WHERE type='index' and name = ?", args
+	return "SELECT name FROM sqlite_master WHERE type='index' AND name=?", args
 }
 
 func (db *sqlite3) TableCheckSql(tableName string) (string, []interface{}) {
 	args := []interface{}{tableName}
-	return "SELECT name FROM sqlite_master WHERE type='table' and name = ?", args
+	return "SELECT name FROM sqlite_master WHERE type='table' AND name=?", args
 }
 
 func (db *sqlite3) DropIndexSql(tableName string, index *core.Index) string {
@@ -253,7 +253,7 @@ func (db *sqlite3) DropIndexSql(tableName string, index *core.Index) string {
 
 func (db *sqlite3) IsColumnExist(tableName string, col *core.Column) (bool, error) {
 	args := []interface{}{tableName}
-	query := "SELECT name FROM sqlite_master WHERE type='table' and name = ? and ((sql like '%`" + col.Name + "`%') or (sql like '%[" + col.Name + "]%'))"
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name=? AND ((sql LIKE '%" + col.CheckedName(db) + "%') OR (sql LIKE '%[" + col.Name + "]%'))"
 	rows, err := db.DB().Query(query, args...)
 	if err != nil {
 		return false, err
@@ -268,7 +268,7 @@ func (db *sqlite3) IsColumnExist(tableName string, col *core.Column) (bool, erro
 
 func (db *sqlite3) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
 	args := []interface{}{tableName}
-	s := "SELECT sql FROM sqlite_master WHERE type='table' and name = ?"
+	s := "SELECT sql FROM sqlite_master WHERE type='table' AND name=?"
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -352,7 +352,7 @@ func (db *sqlite3) GetTables() ([]*core.Table, error) {
 
 func (db *sqlite3) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{tableName}
-	s := "SELECT sql FROM sqlite_master WHERE type='index' and tbl_name = ?"
+	s := "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=?"
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {

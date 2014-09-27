@@ -309,7 +309,7 @@ func (db *mssql) IndexOnTable() bool {
 
 func (db *mssql) IndexCheckSql(tableName, idxName string) (string, []interface{}) {
 	args := []interface{}{idxName}
-	sql := "select name from sysindexes where id=object_id('" + tableName + "') and name=?"
+	sql := "SELECT name FROM sysindexes WHERE id=object_id('" + tableName + "') AND name=?"
 	return sql, args
 }
 
@@ -320,22 +320,22 @@ func (db *mssql) IndexCheckSql(tableName, idxName string) (string, []interface{}
 }*/
 
 func (db *mssql) IsColumnExist(tableName string, col *core.Column) (bool, error) {
-	query := `SELECT "COLUMN_NAME" FROM "INFORMATION_SCHEMA"."COLUMNS" WHERE "TABLE_NAME" = ? AND "COLUMN_NAME" = ?`
+	query := `SELECT "COLUMN_NAME" FROM "INFORMATION_SCHEMA"."COLUMNS" WHERE "TABLE_NAME"=? AND "COLUMN_NAME"=?`
 
 	return db.HasRecords(query, tableName, col.Name)
 }
 
 func (db *mssql) TableCheckSql(tableName string) (string, []interface{}) {
 	args := []interface{}{}
-	sql := "select * from sysobjects where id = object_id(N'" + tableName + "') and OBJECTPROPERTY(id, N'IsUserTable') = 1"
+	sql := "SELECT * FROM sysobjects WHERE id=object_id(N'" + tableName + "') and OBJECTPROPERTY(id,N'IsUserTable')=1"
 	return sql, args
 }
 
 func (db *mssql) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
 	args := []interface{}{}
-	s := `select a.name as name, b.name as ctype,a.max_length,a.precision,a.scale
-from sys.columns a left join sys.types b on a.user_type_id=b.user_type_id
-where a.object_id=object_id('` + tableName + `')`
+	s := `SELECT a.name as name,b.name as ctype,a.max_length,a.precision,a.scale
+FROM sys.columns a LEFT JOIN sys.types b ON a.user_type_id=b.user_type_id
+WHERE a.object_id=object_id('` + tableName + `')`
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -392,7 +392,7 @@ where a.object_id=object_id('` + tableName + `')`
 
 func (db *mssql) GetTables() ([]*core.Table, error) {
 	args := []interface{}{}
-	s := `select name from sysobjects where xtype ='U'`
+	s := `SELECT name FROM sysobjects WHERE xtype='U'`
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -417,16 +417,15 @@ func (db *mssql) GetTables() ([]*core.Table, error) {
 func (db *mssql) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{tableName}
 	s := `SELECT
-IXS.NAME                    AS  [INDEX_NAME],
-C.NAME                      AS  [COLUMN_NAME],
+IXS.NAME AS [INDEX_NAME],
+C.NAME AS [COLUMN_NAME],
 IXS.is_unique AS [IS_UNIQUE]
 FROM SYS.INDEXES IXS
-INNER JOIN SYS.INDEX_COLUMNS   IXCS
-ON IXS.OBJECT_ID=IXCS.OBJECT_ID  AND IXS.INDEX_ID = IXCS.INDEX_ID
-INNER   JOIN SYS.COLUMNS C  ON IXS.OBJECT_ID=C.OBJECT_ID
+INNER JOIN SYS.INDEX_COLUMNS IXCS
+ON IXS.OBJECT_ID=IXCS.OBJECT_ID AND IXS.INDEX_ID=IXCS.INDEX_ID
+INNER JOIN SYS.COLUMNS C ON IXS.OBJECT_ID=C.OBJECT_ID
 AND IXCS.COLUMN_ID=C.COLUMN_ID
-WHERE IXS.TYPE_DESC='NONCLUSTERED' and OBJECT_NAME(IXS.OBJECT_ID) =?
-`
+WHERE IXS.TYPE_DESC='NONCLUSTERED' AND OBJECT_NAME(IXS.OBJECT_ID)=?`
 
 	rows, err := db.DB().Query(s, args...)
 	if err != nil {
@@ -469,7 +468,7 @@ WHERE IXS.TYPE_DESC='NONCLUSTERED' and OBJECT_NAME(IXS.OBJECT_ID) =?
 			index.Name = indexName
 			indexes[indexName] = index
 		}
-		index.AddColumn(colName)
+		index.AddColumn(colName) // TODO need to quote?
 	}
 	return indexes, nil
 }
@@ -480,7 +479,7 @@ func (db *mssql) CreateTableSql(table *core.Table, tableName, storeEngine, chars
 		tableName = table.Name
 	}
 
-	sql = "IF NOT EXISTS (SELECT [name] FROM sys.tables WHERE [name] = '" + tableName + "' ) CREATE TABLE "
+	sql = "IF NOT EXISTS (SELECT [name] FROM sys.tables WHERE [name]='" + tableName + "') CREATE TABLE "
 
 	sql += db.QuoteStr() + tableName + db.QuoteStr() + " ("
 
@@ -498,9 +497,9 @@ func (db *mssql) CreateTableSql(table *core.Table, tableName, storeEngine, chars
 	}
 
 	if len(pkList) > 1 {
-		sql += "PRIMARY KEY ( "
+		sql += "PRIMARY KEY("
 		sql += strings.Join(pkList, ",")
-		sql += " ),"
+		sql += "),"
 	}
 
 	sql = sql[:len(sql)-2] + ")"
