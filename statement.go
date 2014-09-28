@@ -1123,6 +1123,7 @@ func (statement *Statement) genSelectSql(columnStr string) (a string) {
 		fromStr = fmt.Sprintf("%v %v", fromStr, statement.JoinStr)
 	}
 
+	// TODO use dialect instead?
 	if statement.Engine.dialect.DBType() == core.MSSQL {
 		if statement.LimitN > 0 {
 			top = fmt.Sprintf(" TOP %d ", statement.LimitN)
