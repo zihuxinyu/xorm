@@ -636,14 +636,25 @@ func buildConditions(engine *Engine, table *core.Table, bean interface{},
 	return colNames, args
 }
 
-// return current tableName in checked format form, where quotation is included if name is conflicted with reserved keywords
 func (statement *Statement) TableName() string {
 	if statement.AltTableName != "" {
 		return statement.AltTableName
 	}
 
 	if statement.RefTable != nil {
-		return statement.RefTable.CCheckedName(statement.Engine.dialect)
+		return statement.RefTable.Name
+	}
+	return ""
+}
+
+// return current tableName in checked format form, where quotation is included if name is conflicted with reserved keywords
+func (statement *Statement) CheckedTableName() string {
+	if statement.AltTableName != "" {
+		return statement.Engine.dialect.CheckedQuote(statement.AltTableName)
+	}
+
+	if statement.RefTable != nil {
+		return statement.RefTable.CheckedName(statement.Engine.dialect)
 	}
 	return ""
 }
@@ -808,10 +819,10 @@ func (statement *Statement) Cols(columns ...string) *Statement {
 	for _, nc := range newColumns {
 		statement.columnMap[strings.ToLower(nc)] = true
 	}
-	statement.ColumnStr = statement.Engine.dialect.Quote(strings.Join(newColumns, statement.Engine.dialect.Quote(",")))
-	if strings.Contains(statement.ColumnStr, ".") {
-		statement.ColumnStr = strings.Replace(statement.ColumnStr, ".", statement.Engine.dialect.Quote("."), -1)
-	}
+	statement.ColumnStr = strings.Join(newColumns, ",")
+	// if strings.Contains(statement.ColumnStr, ".") {
+	// 	statement.ColumnStr = strings.Replace(statement.ColumnStr, ".", statement.Engine.dialect.Quote("."), -1)
+	// }
 	return statement
 }
 
@@ -941,7 +952,7 @@ func (statement *Statement) genColumnStr() string {
 		}
 
 		if statement.JoinStr != "" {
-			name := statement.TableName() + "." + col.CheckedName(statement.Engine.dialect)
+			name := statement.CheckedTableName() + "." + col.CheckedName(statement.Engine.dialect)
 			// TODO using dialect instead
 			if col.IsPrimaryKey && statement.Engine.Dialect().DBType() == "ql" {
 				colNames = append(colNames, "id() as "+name)
@@ -973,10 +984,11 @@ func indexName(tableName, idxName string) string {
 func (s *Statement) genIndexSQL() []string {
 	var sqls []string = make([]string, 0)
 	tbName := s.TableName()
+	quote := s.Engine.dialect.CheckedQuote
 	for idxName, index := range s.RefTable.Indexes {
 		if index.Type == core.IndexType {
 			sql := fmt.Sprintf("CREATE INDEX %v ON %v (%v);", indexName(tbName, idxName),
-				tbName, strings.Join(index.Cols, ","))
+				quote(tbName), quote(strings.Join(index.Cols, quote(","))))
 			sqls = append(sqls, sql)
 		}
 	}
@@ -1001,16 +1013,18 @@ func (s *Statement) genUniqueSQL() []string {
 
 func (s *Statement) genDelIndexSQL() []string {
 	var sqls []string = make([]string, 0)
+	quote := s.Engine.dialect.CheckedQuote
 	for idxName, index := range s.RefTable.Indexes {
 		var rIdxName string
+		tableName := s.TableName()
 		if index.Type == core.UniqueType {
-			rIdxName = uniqueName(s.TableName(), idxName)
+			rIdxName = uniqueName(tableName, idxName)
 		} else if index.Type == core.IndexType {
-			rIdxName = indexName(s.TableName(), idxName)
+			rIdxName = indexName(tableName, idxName)
 		}
-		sql := fmt.Sprintf("DROP INDEX %v", s.Engine.dialect.CheckedQuote(rIdxName))
+		sql := fmt.Sprintf("DROP INDEX %v", quote(rIdxName))
 		if s.Engine.dialect.IndexOnTable() {
-			sql += fmt.Sprintf(" ON %v", s.TableName())
+			sql += fmt.Sprintf(" ON %v", quote(tableName))
 		}
 		sqls = append(sqls, sql)
 	}
@@ -1053,22 +1067,22 @@ func (statement *Statement) genGetSql(bean interface{}) (string, []interface{}) 
 }
 
 func (s *Statement) genAddColumnStr(col *core.Column) (string, []interface{}) {
-	sql := fmt.Sprintf("ALTER TABLE %v ADD %v;", s.TableName(),
+	sql := fmt.Sprintf("ALTER TABLE %v ADD %v;", s.CheckedTableName(),
 		col.String(s.Engine.dialect))
 	return sql, []interface{}{}
 }
 
 /*func (s *Statement) genAddIndexStr(idxName string, cols []string) (string, []interface{}) {
-	quote := s.Engine.Quote
+	quote := s.Engine.CheckedQuote
 	colstr := quote(strings.Join(cols, quote(",")))
-	sql := fmt.Sprintf("CREATE INDEX %v ON %v (%v);", quote(idxName), s.TableName(), colstr)
+	sql := fmt.Sprintf("CREATE INDEX %v ON %v (%v);", quote(idxName), quote(s.TableName()), colstr)
 	return sql, []interface{}{}
 }
 
 func (s *Statement) genAddUniqueStr(uqeName string, cols []string) (string, []interface{}) {
 	quote := s.Engine.Quote
 	colstr := quote(strings.Join(cols, quote(",")))
-	sql := fmt.Sprintf("CREATE UNIQUE INDEX %v ON %v (%v);", quote(uqeName), s.TableName(), colstr)
+	sql := fmt.Sprintf("CREATE UNIQUE INDEX %v ON %v (%v);", quote(uqeName), quote(s.TableName()), colstr)
 	return sql, []interface{}{}
 }*/
 
@@ -1118,7 +1132,7 @@ func (statement *Statement) genSelectSql(columnStr string) (a string) {
 	} else if statement.ConditionStr != "" {
 		whereStr = fmt.Sprintf(" WHERE %v", statement.ConditionStr)
 	}
-	var fromStr string = " FROM " + statement.TableName()
+	var fromStr string = " FROM " + statement.CheckedTableName()
 	if statement.JoinStr != "" {
 		fromStr = fmt.Sprintf("%v %v", fromStr, statement.JoinStr)
 	}

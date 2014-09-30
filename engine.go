@@ -373,7 +373,7 @@ func (engine *Engine) DumpAll(w io.Writer) error {
 			}
 		}
 
-		rows, err := engine.DB().Query("SELECT * FROM " + table.CCheckedName(engine.dialect))
+		rows, err := engine.DB().Query("SELECT * FROM " + table.CheckedName(engine.dialect))
 		if err != nil {
 			return err
 		}
@@ -392,7 +392,7 @@ func (engine *Engine) DumpAll(w io.Writer) error {
 				return err
 			}
 
-			_, err = io.WriteString(w, "INSERT INTO "+table.CCheckedName(engine.dialect)+" ("+engine.dialect.Quote(strings.Join(cols, engine.dialect.Quote(",")))+") VALUES (")
+			_, err = io.WriteString(w, "INSERT INTO "+table.CheckedName(engine.dialect)+" ("+engine.dialect.Quote(strings.Join(cols, engine.dialect.Quote(",")))+") VALUES (")
 			if err != nil {
 				return err
 			}

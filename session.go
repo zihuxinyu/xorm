@@ -617,7 +617,7 @@ func (statement *Statement) convertIdSql(sqlStr string) string {
 				return ""
 			}
 			newsql := fmt.Sprintf("SELECT %v.%v FROM %v",
-				statement.TableName(),
+				statement.CheckedTableName(),
 				col.Name,
 				sqls[1])
 			return newsql
@@ -640,7 +640,7 @@ func (session *Session) cacheGet(bean interface{}, sqlStr string, args ...interf
 	}
 
 	cacher := session.Engine.getCacher2(session.Statement.RefTable)
-	tableName := session.Statement.TableName()
+	tableName := session.Statement.CheckedTableName()
 	session.Engine.LogDebug("[xorm:cacheGet] find sql:", newsql, args)
 	ids, err := core.GetCacheSql(cacher, tableName, newsql, args)
 	if err != nil {
@@ -730,7 +730,7 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 
 	table := session.Statement.RefTable
 	cacher := session.Engine.getCacher2(table)
-	ids, err := core.GetCacheSql(cacher, session.Statement.TableName(), newsql, args)
+	ids, err := core.GetCacheSql(cacher, session.Statement.CheckedTableName(), newsql, args)
 	if err != nil {
 		//session.Engine.LogError(err)
 		resultsSlice, err := session.query(newsql, args...)
@@ -743,7 +743,7 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 			return ErrCacheFailed
 		}
 
-		tableName := session.Statement.TableName()
+		tableName := session.Statement.CheckedTableName()
 		ids = make([]core.PK, 0)
 		if len(resultsSlice) > 0 {
 			for _, data := range resultsSlice {
@@ -774,7 +774,7 @@ func (session *Session) cacheFind(t reflect.Type, sqlStr string, rowsSlicePtr in
 	ididxes := make(map[string]int)
 	var ides []core.PK = make([]core.PK, 0)
 	var temps []interface{} = make([]interface{}, len(ids))
-	tableName := session.Statement.TableName()
+	tableName := session.Statement.CheckedTableName()
 	for idx, id := range ids {
 		sid, err := id.ToString()
 		if err != nil {
@@ -2063,7 +2063,7 @@ func (session *Session) innerInsertMulti(rowsSlicePtr interface{}) (int64, error
 	cleanupProcessorsClosures(&session.beforeClosures)
 
 	statement := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)",
-		session.Statement.TableName(),
+		session.Statement.CheckedTableName(),
 		strings.Join(colNames, ","),
 		strings.Join(colMultiPlaces, "),("))
 
@@ -2748,7 +2748,7 @@ func (session *Session) innerInsert(bean interface{}) (int64, error) {
 	colPlaces = colPlaces[0 : len(colPlaces)-1]
 
 	sqlStr := fmt.Sprintf("INSERT INTO %v (%v) VALUES (%v)",
-		session.Statement.TableName(),
+		session.Statement.CheckedTableName(),
 		strings.Join(colNames, ","),
 		colPlaces)
 
@@ -2962,7 +2962,7 @@ func (statement *Statement) convertUpdateSql(sqlStr string) (string, string) {
 
 	return sqls[0], fmt.Sprintf("SELECT %v FROM %v WHERE %v",
 		statement.Engine.dialect.CheckedQuote(statement.RefTable.PrimaryKeys[0]),
-		statement.TableName(),
+		statement.CheckedTableName(),
 		whereStr)
 }
 
@@ -3223,7 +3223,7 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 		}
 
 		sqlStr = fmt.Sprintf("UPDATE %v SET %v, %v %v",
-			session.Statement.TableName(),
+			session.Statement.CheckedTableName(),
 			strings.Join(colNames, ","),
 			table.Version+"="+table.Version+" + 1",
 			condition)
@@ -3249,7 +3249,7 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 		}
 
 		sqlStr = fmt.Sprintf("UPDATE %v SET %v %v",
-			session.Statement.TableName(),
+			session.Statement.CheckedTableName(),
 			strings.Join(colNames, ","),
 			condition)
 	}
@@ -3267,8 +3267,9 @@ func (session *Session) Update(bean interface{}, condiBean ...interface{}) (int6
 
 	if cacher := session.Engine.getCacher2(table); cacher != nil && session.Statement.UseCache {
 		//session.cacheUpdate(sqlStr, args...)
-		cacher.ClearIds(session.Statement.TableName())
-		cacher.ClearBeans(session.Statement.TableName())
+		tableName := session.Statement.TableName()
+		cacher.ClearIds(tableName)
+		cacher.ClearBeans(tableName)
 	}
 
 	// handle after update processors
@@ -3412,8 +3413,7 @@ func (session *Session) Delete(bean interface{}) (int64, error) {
 	}
 
 	sqlStr := fmt.Sprintf("DELETE FROM %v WHERE %v",
-		session.Statement.TableName(), condition)
-
+		session.Statement.CheckedTableName(), condition)
 	args = append(session.Statement.Params, args...)
 
 	if cacher := session.Engine.getCacher2(session.Statement.RefTable); cacher != nil && session.Statement.UseCache {
