@@ -554,11 +554,13 @@ func (db *oracle) IsReserved(name string) bool {
 }
 
 func (db *oracle) Quote(name string) string {
-	return "\"" + name + "\""
+	//	return "\"" + name + "\""
+	return name
 }
 
 func (db *oracle) QuoteStr() string {
-	return "\""
+	//	return "\""
+	return " "
 }
 
 func (db *oracle) SupportEngine() bool {
@@ -627,7 +629,7 @@ func (b *oracle) CreateTableSql(table *core.Table, tableName, storeEngine, chars
 func (db *oracle) IndexCheckSql(tableName, idxName string) (string, []interface{}) {
 	args := []interface{}{tableName, idxName}
 	return `SELECT INDEX_NAME FROM USER_INDEXES ` +
-		`WHERE TABLE_NAME = :1 AND INDEX_NAME = :2`, args
+	`WHERE TABLE_NAME = :1 AND INDEX_NAME = :2`, args
 }
 
 func (db *oracle) TableCheckSql(tableName string) (string, []interface{}) {
@@ -668,7 +670,7 @@ func (db *oracle) MustDropTable(tableName string) error {
 func (db *oracle) IsColumnExist(tableName, colName string) (bool, error) {
 	args := []interface{}{tableName, colName}
 	query := "SELECT column_name FROM USER_TAB_COLUMNS WHERE table_name = :1" +
-		" AND column_name = :2"
+	" AND column_name = :2"
 	rows, err := db.DB().Query(query, args...)
 	if db.Logger != nil {
 		db.Logger.Info("[sql]", query, args)
@@ -687,7 +689,7 @@ func (db *oracle) IsColumnExist(tableName, colName string) (bool, error) {
 func (db *oracle) GetColumns(tableName string) ([]string, map[string]*core.Column, error) {
 	args := []interface{}{tableName}
 	s := "SELECT column_name,data_default,data_type,data_length,data_precision,data_scale," +
-		"nullable FROM USER_TAB_COLUMNS WHERE table_name = :1"
+	"nullable FROM USER_TAB_COLUMNS WHERE table_name = :1"
 
 	rows, err := db.DB().Query(s, args...)
 	if db.Logger != nil {
@@ -813,7 +815,7 @@ func (db *oracle) GetTables() ([]*core.Table, error) {
 func (db *oracle) GetIndexes(tableName string) (map[string]*core.Index, error) {
 	args := []interface{}{tableName}
 	s := "SELECT t.column_name,i.uniqueness,i.index_name FROM user_ind_columns t,user_indexes i " +
-		"WHERE t.index_name = i.index_name and t.table_name = i.table_name and t.table_name =:1"
+	"WHERE t.index_name = i.index_name and t.table_name = i.table_name and t.table_name =:1"
 
 	rows, err := db.DB().Query(s, args...)
 	if db.Logger != nil {
